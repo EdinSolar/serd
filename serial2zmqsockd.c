@@ -10,13 +10,13 @@
 #include <string.h>
 #include <czmq.h>
 
-#define DAEMON_NAME "anzmqd"
+#define DAEMON_NAME "serd"
 
 zsock_t *pub;
 
 void rundaemon(void)
 {
-	syslog(LOG_DEBUG, "thinged");
+	syslog(LOG_DEBUG, "zstring sent");
 	zstr_send (pub, "FUCK SOCKETS.\n");
 }
 
