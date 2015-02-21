@@ -1,3 +1,7 @@
+# Compiled binaries
+serd
+test
+
 # Object files
 *.o
 *.ko

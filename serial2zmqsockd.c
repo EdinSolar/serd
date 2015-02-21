@@ -17,7 +17,7 @@ zsock_t *pub;
 void rundaemon(void)
 {
 	syslog(LOG_DEBUG, "zstring sent");
-	zstr_send (pub, "FUCK SOCKETS.\n");
+	zstr_send (pub, "Ping from serdS.\n");
 }
 
 void sig_handler(int signum)
