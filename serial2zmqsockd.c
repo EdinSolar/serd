@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <string.h>
+#include <termios.h>
 #include <czmq.h>
 
 #define SERIALPORT "/dev/ttyAMA0"
@@ -20,7 +21,11 @@ zsock_t *pub;
 /* File descripter for serial port */
 int file_desc = -1;
 
+/* Buffer to yank from serial and pipe to zeromq */
 void* serialbuff[SERIAL_BUFFER_SIZE+1];
+
+/* Serial port config struct */
+struct termios io;
 
 
 void rundaemon(void)
@@ -34,7 +39,7 @@ void rundaemon(void)
 	}
 }
 
-void dofork()
+void dofork(void)
 {
 	pid_t pid;
         pid_t sid;
@@ -87,6 +92,18 @@ void initserial(void)
 
 	/* Set file flags for serial port */
 	fcntl(file_desc, F_SETFL, SER_READ_TIMEOUT);
+
+	/* load and set serial line conf */
+	tcgetattr(file_desc, &io);
+	
+	/* Set baud */
+	cfsetispeed(&io, B115200);
+	cfsetospeed(&io, B115200);
+
+	/* Enable reciever and set local mode */
+	io.c_cflag |= (CLOCAL | CREAD);
+	
+	tcsetattr(file_desc, TCSANOW, &io);
 }
 
 
@@ -112,7 +129,6 @@ int main (int argc, char *argv[])
 
 	while(1){
 		rundaemon();
-		sleep(20);
 	}
 
         closelog();
