@@ -34,6 +34,37 @@ void rundaemon(void)
 	}
 }
 
+void dofork()
+{
+	pid_t pid;
+        pid_t sid;
+
+        /* Fork the parent process: */
+        pid = fork();
+
+        if (pid < 0) exit(EXIT_FAILURE);
+        if (pid > 0) exit(EXIT_SUCCESS);
+
+	/* Adopt perms of initialising user */
+        umask(0);
+
+        /* Set a new signature ID for the child process */
+        sid = setsid();
+
+        if (sid < 0) exit(EXIT_FAILURE);
+
+        /*
+         * Change DIR
+         * If we can't change to the root directory
+         */
+        if ((chdir("/")) < 0) exit(EXIT_FAILURE);
+
+	/* Close standard file descriptors */
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+}
+
 
 void sig_handler(int signum)
 {
@@ -66,28 +97,7 @@ int main (int argc, char *argv[])
 
         syslog(LOG_INFO, "Beginning init...");
 
-        pid_t pid;
-        pid_t sid;
-
-        /* Fork the parent process: */
-        pid = fork();
-
-        if (pid < 0) exit(EXIT_FAILURE);
-        if (pid > 0) exit(EXIT_SUCCESS);
-
-	/* Adopt perms of initialising user */
-        umask(0);
-
-        /* Set a new signature ID for the child process */
-        sid = setsid();
-
-        if (sid < 0) exit(EXIT_FAILURE);
-
-        /*
-         * Change DIR
-         * If we can't change to the root directory
-         */
-        if ((chdir("/")) < 0) exit(EXIT_FAILURE);
+	dofork();
 
 	/* Initialise serial: */
 	initserial();
@@ -97,11 +107,6 @@ int main (int argc, char *argv[])
 	/* Handle kill signals */
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
-
-        /* Close standard file descriptors */
-        close(STDIN_FILENO);
-        close(STDOUT_FILENO);
-        close(STDERR_FILENO);
 
 	syslog(LOG_INFO, "Initialised successfully");
 
