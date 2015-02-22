@@ -76,6 +76,7 @@ void sig_handler(int signum)
 	if(signum == SIGTERM || signum == SIGINT){
 		zsock_destroy(&pub);
 		close(file_desc);
+		syslog(LOG_NOTICE, "Exiting successfully...");
 		exit(EXIT_SUCCESS);
 	}
 }
@@ -85,7 +86,7 @@ void initserial(void)
 {
 	/* Open dev file with no delay on the _reading_ */
 	file_desc = open(SERIALPORT, O_RDWR | O_NOCTTY | O_NDELAY);
-	
+
 	if (file_desc < 0){
 		syslog(LOG_ERR, "Can't open serial port");
 		exit(EXIT_FAILURE);
