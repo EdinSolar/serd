@@ -60,7 +60,7 @@ void dofork(void)
 
         /*
          * Change DIR
-         * If we can't change to the root directory
+         * If we can't change to the root directory then die
          */
         if ((chdir("/")) < 0) exit(EXIT_FAILURE);
 
@@ -83,6 +83,7 @@ void sig_handler(int signum)
 
 void initserial(void)
 {
+	/* Open dev file with no delay on the _reading_ */
 	file_desc = open(SERIALPORT, O_RDWR | O_NOCTTY | O_NDELAY);
 	
 	if (file_desc < 0){
@@ -129,6 +130,8 @@ int main (int argc, char *argv[])
 
 	while(1){
 		rundaemon();
+		//sleep(20);
+		//write(file_desc, "ping\n", 5);
 	}
 
         closelog();
