@@ -27,6 +27,45 @@ void* serialbuff[SERIAL_BUFFER_SIZE+1];
 /* Serial port config struct */
 struct termios io;
 
+/* Helper prototypes: */
+void rundaemon(void);
+void dofork(void);
+void initserial(void);
+void _sig_handler(int);
+
+
+int main (int argc, char *argv[])
+{
+        setlogmask (LOG_UPTO (LOG_INFO));
+        openlog (DAEMON_NAME, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+
+        syslog(LOG_INFO, "Beginning init...");
+
+	dofork();
+
+	/* Initialise serial: */
+	initserial();
+
+	/* Initialise socket: */
+        pub = zsock_new_pub (">tcp://127.0.0.1:5000");
+	
+        /* Handle kill signals */
+	signal(SIGINT, _sig_handler);
+	signal(SIGTERM, _sig_handler);
+
+	syslog(LOG_INFO, "Initialised successfully");
+
+	while(1){
+		rundaemon();
+		//sleep(20);
+		//write(file_desc, "ping\n", 5);
+	}
+
+        closelog();
+}
+
+
+
 
 void rundaemon(void)
 {
@@ -71,17 +110,6 @@ void dofork(void)
 }
 
 
-void sig_handler(int signum)
-{
-	if(signum == SIGTERM || signum == SIGINT){
-		zsock_destroy(&pub);
-		close(file_desc);
-		syslog(LOG_NOTICE, "Exiting successfully...");
-		exit(EXIT_SUCCESS);
-	}
-}
-
-
 void initserial(void)
 {
 	/* Open dev file with no delay on the _reading_ */
@@ -109,31 +137,13 @@ void initserial(void)
 }
 
 
-int main (int argc, char *argv[])
+/* Handle system signals (Terminate, Interrupt) */
+void _sig_handler(int signum)
 {
-        setlogmask (LOG_UPTO (LOG_INFO));
-        openlog (DAEMON_NAME, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
-
-        syslog(LOG_INFO, "Beginning init...");
-
-	dofork();
-
-	/* Initialise serial: */
-	initserial();
-
-	/* Initialise socket: */
-        pub = zsock_new_pub (">tcp://127.0.0.1:5000");
-	/* Handle kill signals */
-	signal(SIGINT, sig_handler);
-	signal(SIGTERM, sig_handler);
-
-	syslog(LOG_INFO, "Initialised successfully");
-
-	while(1){
-		rundaemon();
-		//sleep(20);
-		//write(file_desc, "ping\n", 5);
+	if(signum == SIGTERM || signum == SIGINT){
+		zsock_destroy(&pub);
+		syslog(LOG_NOTICE, "Exiting successfully...");
+		close(file_desc);
+		exit(EXIT_SUCCESS);
 	}
-
-        closelog();
 }
