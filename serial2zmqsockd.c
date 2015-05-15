@@ -1,15 +1,15 @@
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <unistd.h>
-#include <syslog.h>
-#include <string.h>
-#include <termios.h>
-#include <czmq.h>
+#include <sys/types.h>  /* Types */
+#include <sys/stat.h>   /* File Status */
+#include <stdio.h>      /* Standard Input/Output functions & macros */
+#include <stdlib.h>     /* Standard library functions & macros */
+#include <fcntl.h>      /* File control */
+#include <errno.h>      /* Contains error numbers for process exit */
+#include <signal.h>     /* Signal handling (e.g. SIGTERM, SIGINT) */
+#include <unistd.h>     /* Contains POSIX symbolic constants */
+#include <syslog.h>     /* System log library */
+#include <string.h>     /* Strings, duh */
+#include <termios.h>    /* Serial line control */
+#include <czmq.h>       /* C ZeroMQ Binding */
 
 #define SERIALPORT "/dev/ttyAMA0"
 #define SER_READ_TIMEOUT 20
@@ -77,6 +77,8 @@ void rundaemon(void)
 		zstr_send(pub, (char*) serialbuff);
 	}
 }
+
+
 
 void dofork(void)
 {
