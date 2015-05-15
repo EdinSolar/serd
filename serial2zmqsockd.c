@@ -128,13 +128,15 @@ void initserial(void)
 	/* load and set serial line conf */
 	tcgetattr(file_desc, &io);
 	
-	/* Set baud */
+	/* Set baud rates for in and out */
 	cfsetispeed(&io, B115200);
 	cfsetospeed(&io, B115200);
 
 	/* Enable reciever and set local mode */
 	io.c_cflag |= (CLOCAL | CREAD);
 	
+        /* Set termios attributes. TCSANOW means the descriptor 
+           will change as soon as a write occurs. */
 	tcsetattr(file_desc, TCSANOW, &io);
 }
 
