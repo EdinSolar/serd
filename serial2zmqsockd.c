@@ -12,9 +12,12 @@
 #include <czmq.h>       /* C ZeroMQ Binding */
 
 #define SERIALPORT "/dev/ttyAMA0"
+/*#define SERIALPORT "/dev/pts/N"*/
 #define SER_READ_TIMEOUT 20
 #define SERIAL_BUFFER_SIZE 4000
 #define DAEMON_NAME "serd"
+
+#define SERD_LOG_LEVEL LOG_DEBUG
 
 /* zeromq publisher */
 zsock_t *pub;
@@ -22,7 +25,7 @@ zsock_t *pub;
 int file_desc = -1;
 
 /* Buffer to yank from serial and pipe to zeromq */
-void* serialbuff[SERIAL_BUFFER_SIZE+1];
+unsigned char serialbuff[SERIAL_BUFFER_SIZE+1];
 
 /* Serial port config struct */
 struct termios io;
@@ -36,7 +39,7 @@ void _sig_handler(int);
 
 int main (int argc, char *argv[])
 {
-        setlogmask (LOG_UPTO (LOG_INFO));
+        setlogmask (LOG_UPTO (SERD_LOG_LEVEL));
         openlog (DAEMON_NAME, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
 
         syslog(LOG_INFO, "Beginning init...");
@@ -132,7 +135,8 @@ void initserial(void)
 	cfsetispeed(&io, B115200);
 	cfsetospeed(&io, B115200);
 
-	/* Enable reciever and set local mode */
+	/* Enable reciever and set local mode
+           with bitwise operation */
 	io.c_cflag |= (CLOCAL | CREAD);
 	
         /* Set termios attributes. TCSANOW means the descriptor 
