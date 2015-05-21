@@ -2,27 +2,28 @@
 #include <sys/stat.h>   /* File Status */
 #include <stdio.h>      /* Standard Input/Output functions & macros */
 #include <stdlib.h>     /* Standard library functions & macros */
-#include <fcntl.h>      /* File control */
+#include <fcntl.h>      /* (UART) File control */
 #include <errno.h>      /* Contains error numbers for process exit */
 #include <signal.h>     /* Signal handling (e.g. SIGTERM, SIGINT) */
-#include <unistd.h>     /* Contains POSIX symbolic constants */
+#include <unistd.h>     /* (UART) Contains POSIX symbolic constants */
 #include <syslog.h>     /* System log library */
 #include <string.h>     /* Strings, duh */
-#include <termios.h>    /* Serial line control */
+#include <termios.h>    /* (UART) Serial line control */
 #include <czmq.h>       /* C ZeroMQ Binding */
 
 #define SERIALPORT "/dev/ttyAMA0"
-/*#define SERIALPORT "/dev/pts/N"*/
+/*#define SERIALPORT "/dev/pts/11"*/
+#define SERD_SOCKET "tcp://127.0.0.1:5000"
 #define SER_READ_TIMEOUT 20
 #define SERIAL_BUFFER_SIZE 4000
 #define DAEMON_NAME "serd"
 
 #define SERD_LOG_LEVEL LOG_DEBUG
 
-/* zeromq publisher */
+/* zeromq publisher socket */
 zsock_t *pub;
 /* File descripter for serial port */
-int file_desc = -1;
+int tty_file_desc = -1;
 
 /* Buffer to yank from serial and pipe to zeromq */
 unsigned char serialbuff[SERIAL_BUFFER_SIZE+1];
@@ -50,21 +51,15 @@ int main (int argc, char *argv[])
 	initserial();
 
 	/* Initialise socket: */
-        pub = zsock_new_pub (">tcp://127.0.0.1:5000");
+        pub = zsock_new_pub (">"SERD_SOCKET);
 	
         /* Handle kill signals */
 	signal(SIGINT, _sig_handler);
 	signal(SIGTERM, _sig_handler);
 
-	syslog(LOG_INFO, "Initialised successfully");
+	syslog(LOG_INFO, "Initialised successfully on %s using %s", SERD_SOCKET, SERIALPORT);
 
-	while(1){
-		rundaemon();
-		//sleep(20);
-		//write(file_desc, "ping\n", 5);
-	}
-
-        closelog();
+	while(1) rundaemon();
 }
 
 
@@ -72,11 +67,12 @@ int main (int argc, char *argv[])
 
 void rundaemon(void)
 {
-	int n = read(file_desc, serialbuff, SERIAL_BUFFER_SIZE);
+	int n = read(tty_file_desc, serialbuff, SERIAL_BUFFER_SIZE);
 	if(n > SERIAL_BUFFER_SIZE) syslog(LOG_ERR, "Serial buffer size exceeded!");
 
 	if(n != 0){
-		serialbuff[n] = '\0';
+                /* Null terminate at the end of this read given we don't clean the buffer: */
+		serialbuff[n-1] = '\0';
 		zstr_send(pub, (char*) serialbuff);
 	}
 }
@@ -117,19 +113,23 @@ void dofork(void)
 
 void initserial(void)
 {
-	/* Open dev file with no delay on the _reading_ */
-	file_desc = open(SERIALPORT, O_RDWR | O_NOCTTY | O_NDELAY);
+	/* 
+           O_RDWR      --  Read & Write enabled
+           O_NOCTTY    --  Do NOT use the TTY as this process' controlling terminal
+           o_NONBLOCK  --  Do not allow operations on this file to cause blocking
+        */
+	tty_file_desc = open(SERIALPORT, O_RDWR | O_NOCTTY | O_NONBLOCK);
 
-	if (file_desc < 0){
-		syslog(LOG_ERR, "Can't open serial port");
+	if (tty_file_desc < 0){
+                syslog(LOG_ERR, "Can't open serial port %s (errno %i)", SERIALPORT, tty_file_desc);
 		exit(EXIT_FAILURE);
 	}
 
 	/* Set file flags for serial port */
-	fcntl(file_desc, F_SETFL, SER_READ_TIMEOUT);
+	fcntl(tty_file_desc, F_SETFL, SER_READ_TIMEOUT);
 
 	/* load and set serial line conf */
-	tcgetattr(file_desc, &io);
+	tcgetattr(tty_file_desc, &io);
 	
 	/* Set baud rates for in and out */
 	cfsetispeed(&io, B115200);
@@ -141,7 +141,7 @@ void initserial(void)
 	
         /* Set termios attributes. TCSANOW means the descriptor 
            will change as soon as a write occurs. */
-	tcsetattr(file_desc, TCSANOW, &io);
+	tcsetattr(tty_file_desc, TCSANOW, &io);
 }
 
 
@@ -150,8 +150,9 @@ void _sig_handler(int signum)
 {
 	if(signum == SIGTERM || signum == SIGINT){
 		zsock_destroy(&pub);
-		syslog(LOG_NOTICE, "Exiting successfully...");
-		close(file_desc);
+		syslog(LOG_NOTICE, "Exiting...");
+		closelog();
+                close(tty_file_desc);
 		exit(EXIT_SUCCESS);
 	}
 }

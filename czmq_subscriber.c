@@ -13,7 +13,7 @@ int main (int argc, char *argv[])
 
 	while(1){
 		char *string = zstr_recv(sub);
-		printf(string);
+		printf("%s",string);
 		zstr_free(&string);
 		fflush(stdout);
 	}
