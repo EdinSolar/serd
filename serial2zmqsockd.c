@@ -31,7 +31,7 @@ unsigned char serialbuff[SERIAL_BUFFER_SIZE+1];
 /* Serial port config struct */
 struct termios io;
 
-/* Helper prototypes: */
+/* Function prototypes: */
 void rundaemon(void);
 void dofork(void);
 void initserial(void);

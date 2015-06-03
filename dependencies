@@ -1,0 +1,7 @@
+# Somewhat liberal dependencies for building CZMQ, ZMQ & Serd
+build-essential
+gcc
+gdb
+libtool
+dnsutils
+
