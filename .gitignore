@@ -1,6 +1,7 @@
 # Compiled binaries
 serd
-test
+ptest
+stest
 
 # Object files
 *.o
