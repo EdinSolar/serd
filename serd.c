@@ -47,8 +47,9 @@ char sub_port[6] = SERD_DEF_SUB_PRT;
 char use_tty[99] = DEFAULT_TTY;
 
 /* Function prototypes: */
-void rundaemon(void);
-void dofork(void);
+void run_pub(void);
+void run_sub(void);
+void daemonise(void);
 void initserial(void);
 void initsocket(void);
 void _sig_handler(int);
@@ -104,7 +105,7 @@ int main (int argc, char *argv[])
         }
         
         
-	dofork();
+	daemonise();
 
 	/* Initialise serial: */
 	initserial();
@@ -112,20 +113,37 @@ int main (int argc, char *argv[])
         /* Initialise publisher and subscriber sockets: */
         initsocket();
 
+	syslog(LOG_INFO, 
+                "Initialised, publishing to port %s and listening on port %s using %s", 
+                pub_port, sub_port, use_tty);
+
+
+        /* Fork again */
+        syslog(LOG_DEBUG, "Forking into publisher and subscriber...");
+        pid_t pid;
+        pid = fork();
+        
+        /* Fork failed */
+        if (pid < 0) exit(EXIT_FAILURE);
+
         /* Handle kill signals */
 	signal(SIGINT, _sig_handler);
 	signal(SIGTERM, _sig_handler);
 
-	syslog(LOG_INFO, "Initialised successfully, publishing to %s%s and listening on %s%s using %s", 
-               SERD_DEF_PUBSOCK, pub_port, SERD_DEF_SUBSOCK, sub_port, use_tty);
+        umask(0);
 
-	while(1) rundaemon();
+        /* Parent and child jobs */
+        if (pid > 0) {
+                while(1) run_pub();
+        } else {
+                while(1) run_sub();
+        }
 }
 
 
 
 
-void rundaemon(void)
+void run_pub(void)
 {
 	int n = read(tty_file_desc, serialbuff, SERIAL_BUFFER_SIZE);
         
@@ -139,8 +157,22 @@ void rundaemon(void)
 }
 
 
+void run_sub(void)
+{
+        /*syslog(LOG_DEBUG, "Hello...");
+        write(tty_file_desc,"Hello\n",7);
+        sleep(10);*/
+        syslog(LOG_DEBUG, "Waiting for stuff...");
+	char *string = zstr_recv(sub);
+        syslog(LOG_DEBUG, "Recieved %s len %i", string, strlen(string));
+        write(tty_file_desc,string,strlen(string)+1);
+        syslog(LOG_DEBUG, "Wrote that.");
+        zstr_free(&string);
+}
 
-void dofork(void)
+
+
+void daemonise(void)
 {
 	pid_t pid;
         pid_t sid;
@@ -236,7 +268,7 @@ void _sig_handler(int signum)
 	if(signum == SIGTERM || signum == SIGINT){
 		zsock_destroy(&pub);
 		zsock_destroy(&sub);
-                syslog(LOG_INFO, "Exiting... (sig %i)", signum);
+                syslog(LOG_INFO, "Exiting... (sig %i)(parent %i)", signum, getppid());
 		closelog();
                 close(tty_file_desc);
                 exit(EXIT_SUCCESS);
