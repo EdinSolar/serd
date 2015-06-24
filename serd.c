@@ -1,20 +1,24 @@
 #include <sys/types.h>  /* Types */
 #include <sys/stat.h>   /* File Status */
 #include <stdio.h>      /* Standard Input/Output functions & macros */
+#include <string.h>     /*  */
 #include <stdlib.h>     /* Standard library functions & macros */
-#include <fcntl.h>      /* (UART) File control */
+#include <fcntl.h>      /* File control */
 #include <errno.h>      /* Contains error numbers for process exit */
 #include <signal.h>     /* Signal handling (e.g. SIGTERM, SIGINT) */
 #include <unistd.h>     /* (UART) Contains POSIX symbolic constants */
 #include <syslog.h>     /* System log library */
-#include <string.h>     /* Strings, duh */
 #include <termios.h>    /* (UART) Serial line control */
 #include <czmq.h>       /* C ZeroMQ Binding */
 
-#define SERIALPORT "/dev/ttyAMA0"
-/*#define SERIALPORT "/dev/pts/11"*/
-#define SERD_SOCKET "tcp://127.0.0.1:5000"
+/* Default TTY */
+#define DEFAULT_TTY "/dev/ttyAMA0"
+
+#define SERD_SOCKET "tcp://127.0.0.1:"
+/* Defauly publish port */
+#define SERD_DEF_PRT 5000
 #define SER_READ_TIMEOUT 20
+/* Max size of input serial buffer, in chars */
 #define SERIAL_BUFFER_SIZE 4000
 #define DAEMON_NAME "serd"
 
@@ -22,7 +26,8 @@
 
 /* zeromq publisher socket */
 zsock_t *pub;
-/* File descripter for serial port */
+
+/* File descripter for serial port, initialised to an error. */
 int tty_file_desc = -1;
 
 /* Buffer to yank from serial and pipe to zeromq */
@@ -57,7 +62,7 @@ int main (int argc, char *argv[])
 	signal(SIGINT, _sig_handler);
 	signal(SIGTERM, _sig_handler);
 
-	syslog(LOG_INFO, "Initialised successfully on %s using %s", SERD_SOCKET, SERIALPORT);
+	syslog(LOG_INFO, "Initialised successfully on %s using %s", SERD_SOCKET, DEFAULT_TTY);
 
 	while(1) rundaemon();
 }
@@ -68,11 +73,12 @@ int main (int argc, char *argv[])
 void rundaemon(void)
 {
 	int n = read(tty_file_desc, serialbuff, SERIAL_BUFFER_SIZE);
-	if(n > SERIAL_BUFFER_SIZE) syslog(LOG_ERR, "Serial buffer size exceeded!");
+
+	if(n >= SERIAL_BUFFER_SIZE) syslog(LOG_ERR, "Serial buffer size exceeded!");
 
 	if(n != 0){
-                /* Null terminate at the end of this read given we don't clean the buffer: */
-		serialbuff[n-1] = '\0';
+                /* Null terminate at the end of this read given we don't empty the buffer after each read: */
+		serialbuff[n] = '\0';
 		zstr_send(pub, (char*) serialbuff);
 	}
 }
@@ -118,10 +124,10 @@ void initserial(void)
            O_NOCTTY    --  Do NOT use the TTY as this process' controlling terminal
            o_NONBLOCK  --  Do not allow operations on this file to cause blocking
         */
-	tty_file_desc = open(SERIALPORT, O_RDWR | O_NOCTTY | O_NONBLOCK);
+	tty_file_desc = open(DEFAULT_TTY, O_RDWR | O_NOCTTY | O_NONBLOCK);
 
 	if (tty_file_desc < 0){
-                syslog(LOG_ERR, "Can't open serial port %s (errno %i)", SERIALPORT, tty_file_desc);
+                syslog(LOG_ERR, "Can't open serial port %s (errno %i)", DEFAULT_TTY, tty_file_desc);
 		exit(EXIT_FAILURE);
 	}
 
