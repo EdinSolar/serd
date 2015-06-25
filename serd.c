@@ -1,7 +1,7 @@
 #include <sys/types.h>  /* Types */
 #include <sys/stat.h>   /* File Status */
 #include <stdio.h>      /* Standard Input/Output functions & macros */
-#include <string.h>     /*  */
+#include <string.h>     /* String manipulation */
 #include <stdlib.h>     /* Standard library functions & macros */
 #include <fcntl.h>      /* File control */
 #include <errno.h>      /* Contains error numbers for process exit */
@@ -95,7 +95,7 @@ int main (int argc, char *argv[])
                 case 'h':
                         printf("TODO: Help text.\n");
                         syslog(LOG_INFO, "Exiting with help text.");
-                        exit(EXIT_SUCCESS);
+                        raise(SIGTERM);
                         break;
                 
                 default:
