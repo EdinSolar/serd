@@ -51,12 +51,17 @@ void run_pub(void);
 void run_sub(void);
 void daemonise(void);
 void initserial(void);
-void initsocket(void);
+void initsocket(pid_t);
 void _sig_handler(int);
 
 
 int main (int argc, char *argv[])
 {
+        /* Handle kill signals */
+	signal(SIGINT, _sig_handler);
+	signal(SIGTERM, _sig_handler);
+	signal(SIGCHLD, _sig_handler);
+        
         setlogmask (LOG_UPTO (SERD_LOG_LEVEL));
         openlog (DAEMON_NAME, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_DAEMON);
 
@@ -103,15 +108,13 @@ int main (int argc, char *argv[])
         if (argc != 0){
                 syslog(LOG_INFO, "Undefined arguments given! Continuing.");
         }
-        
-        
+
+        /* Fork and kill parent */
 	daemonise();
 
 	/* Initialise serial: */
+        /* Do this before second fork so the file descriptor can be shared */
 	initserial();
-
-        /* Initialise publisher and subscriber sockets: */
-        initsocket();
 
 	syslog(LOG_INFO, 
                "Initialised, publishing to port %s and listening on port %s using %s", 
@@ -124,18 +127,24 @@ int main (int argc, char *argv[])
         pid = fork();
         
         /* Fork failed */
-        if (pid < 0) exit(EXIT_FAILURE);
-
-        /* Handle kill signals */
-	signal(SIGINT, _sig_handler);
-	signal(SIGTERM, _sig_handler);
+        if (pid < 0){
+                syslog(LOG_ERR, "PubSub fork failed! Exiting...");
+                exit(EXIT_FAILURE);
+        }
 
         umask(0);
 
+        
+        /* Initialise publisher and subscriber sockets: */
+        /* Do this after fork as ZMQ sockets can only be used by initialising process */
+        initsocket(pid);
+
         /* Parent and child jobs */
         if (pid > 0) {
+                syslog(LOG_INFO, "Pub is %i (parent %i)", getpid(), getppid());
                 while(1) run_pub();
         } else {
+                syslog(LOG_INFO, "Sub is %i (parent %i)", getpid(), getppid());
                 while(1) run_sub();
         }
 }
@@ -146,7 +155,6 @@ int main (int argc, char *argv[])
 void run_pub(void)
 {
 	int n = read(tty_file_desc, serialbuff, SERIAL_BUFFER_SIZE);
-        
 	if(n >= SERIAL_BUFFER_SIZE) syslog(LOG_ERR, "Serial buffer size exceeded!");
 
 	if(n != 0){
@@ -159,15 +167,10 @@ void run_pub(void)
 
 void run_sub(void)
 {
-        /*syslog(LOG_DEBUG, "Hello...");
-          write(tty_file_desc,"Hello\n",7);
-          sleep(10);*/
-        syslog(LOG_DEBUG, "Waiting for stuff...");
 	char *string = zstr_recv(sub);
-        syslog(LOG_DEBUG, "Recieved %s len %i", string, strlen(string));
         write(tty_file_desc,string,strlen(string)+1);
-        syslog(LOG_DEBUG, "Wrote that.");
         zstr_free(&string);
+        sleep(1);
 }
 
 
@@ -193,8 +196,8 @@ void daemonise(void)
         sid = setsid();
 
         if (sid < 0) {
-                syslog(LOG_ERR, "Could not fork!");
-                killpg(getpid(),SIGINT);
+                syslog(LOG_ERR, "Could not detach from parent TTY!");
+                killpg(getpid(),SIGTERM);
         }
 
         /*
@@ -244,34 +247,42 @@ void initserial(void)
 }
 
 
-void initsocket(void)
+void initsocket(pid_t pid)
 {
-        char* ptmp = malloc(strlen(SERD_DEF_PUBSOCK) + strlen(pub_port) +1);
-        sprintf(ptmp, "%s%s", SERD_DEF_PUBSOCK, pub_port);
+        if (pid > 0) {
+                /* Initialise pub if parent process */
+                char* ptmp = malloc(strlen(SERD_DEF_PUBSOCK) + strlen(pub_port) +1);
+                sprintf(ptmp, "%s%s", SERD_DEF_PUBSOCK, pub_port);
 
-	/* Initialise Publisher socket: */
-        pub = zsock_new_pub(ptmp);
-        free(ptmp);
+                pub = zsock_new_pub(ptmp);
+                free(ptmp);
+                
+        } else {
+                /* Initialise sub if child */
+                char* stmp = malloc(strlen(SERD_DEF_SUBSOCK) + strlen(sub_port) +1);
+                sprintf(stmp, "%s%s", SERD_DEF_SUBSOCK, sub_port);
 
-        char* stmp = malloc(strlen(SERD_DEF_SUBSOCK) + strlen(sub_port) +1);
-        sprintf(stmp, "%s%s", SERD_DEF_SUBSOCK, sub_port);
-
-        /* Initialise Subscriber socket: */
-        sub = zsock_new_sub(stmp, "");
-        free(stmp);
+                sub = zsock_new_sub(stmp, "");
+                free(stmp);
+        }
 }
 
 
-/* Handle system signals (Terminate, Interrupt) */
+/* Handle system signal */
 void _sig_handler(int signum)
 {
-	if(signum == SIGTERM || signum == SIGINT){
-		zsock_destroy(&pub);
-		zsock_destroy(&sub);
+        switch (signum){
+        case SIGCHLD:
+        case SIGTERM:
+        case SIGINT:
                 syslog(LOG_INFO, "Exiting... (sig %i)(parent %i)", signum, getppid());
-		closelog();
+        
+        default:
+                if(!pub) zsock_destroy(&pub);
+                if(!sub) zsock_destroy(&sub);
+                closelog();
                 close(tty_file_desc);
                 exit(EXIT_SUCCESS);
-	}
-        syslog(LOG_ERR, "Quit unexpectedly.");
+                break;
+        }
 }
