@@ -168,7 +168,7 @@ void run_pub(void)
 void run_sub(void)
 {
 	char *string = zstr_recv(sub);
-        write(tty_file_desc,string,strlen(string)+1);
+        write(tty_file_desc,string,strlen(string));
         zstr_free(&string);
         sleep(1);
 }
