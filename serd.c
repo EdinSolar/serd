@@ -114,8 +114,8 @@ int main (int argc, char *argv[])
         initsocket();
 
 	syslog(LOG_INFO, 
-                "Initialised, publishing to port %s and listening on port %s using %s", 
-                pub_port, sub_port, use_tty);
+               "Initialised, publishing to port %s and listening on port %s using %s", 
+               pub_port, sub_port, use_tty);
 
 
         /* Fork again */
@@ -160,8 +160,8 @@ void run_pub(void)
 void run_sub(void)
 {
         /*syslog(LOG_DEBUG, "Hello...");
-        write(tty_file_desc,"Hello\n",7);
-        sleep(10);*/
+          write(tty_file_desc,"Hello\n",7);
+          sleep(10);*/
         syslog(LOG_DEBUG, "Waiting for stuff...");
 	char *string = zstr_recv(sub);
         syslog(LOG_DEBUG, "Recieved %s len %i", string, strlen(string));
